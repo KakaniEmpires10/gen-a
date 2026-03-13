@@ -1,0 +1,463 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Activity {
+  id               String            @id @default(cuid())
+  name             String
+  description      String
+  startDate        DateTime          @map("start_date")
+  endDate          DateTime?         @map("end_date")
+  location         String?
+  status           ActivityStatus
+  year             Int
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  committee_member CommitteeMember[]
+  gallery_items    GalleryItem[]
+
+  @@map("activity")
+}
+
+model CommitteeMember {
+  id         String   @id @default(cuid())
+  activityId String   @map("activity_id")
+  memberId   String   @map("member_id")
+  role       String
+  year       Int
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  member     Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("committee_member")
+}
+
+model Department {
+  id             String          @id @default(cuid())
+  name           String
+  description    String?
+  headMemberId   String?         @unique @map("head_member_id")
+  // Relations
+  head_member    Member?         @relation("DepartmentHead", fields: [headMemberId], references: [id], onDelete: SetNull)
+  members        Member[]        @relation("DepartmentMembers")
+  sub_department SubDepartment[]
+
+  @@map("departments")
+}
+
+model GalleryItem {
+  id                String           @id @default(cuid())
+  imageUrl          String           @map("image_url")
+  caption           String?
+  uploadedAt        DateTime         @default(now()) @map("uploaded_at")
+  activityId        String?          @map("activity_id")
+  subUnitId         String?          @map("subunit_id")
+  subUnitActivityId String?          @map("subunit_activity_id")
+  newsId            String?          @map("news_id")
+  activity          Activity?        @relation(fields: [activityId], references: [id])
+  subunit_activity  SubUnitActivity? @relation(fields: [subUnitActivityId], references: [id])
+  subunit           SubUnit?         @relation(fields: [subUnitId], references: [id])
+  News              News?            @relation(fields: [newsId], references: [id])
+  gallery_labels    GalleryLabel[]
+
+  @@map("gallery_items")
+}
+
+model GalleryLabel {
+  id            String        @id @default(cuid())
+  name          String
+  gallery_items GalleryItem[]
+
+  @@map("gallery_labels")
+}
+
+model Issue {
+  id              String          @id @default(cuid())
+  title           String
+  description     String
+  imageUrl        String?         @map("image_url")
+  status          IssueStatus     @default(OPEN)
+  reportedById    String          @map("reported_by")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  users           Users           @relation(fields: [reportedById], references: [id])
+  issue_responses IssueResponse[]
+
+  @@map("issues")
+}
+
+model IssueResponse {
+  id        String   @id @default(cuid())
+  issueId   String   @map("issue_id")
+  response  String
+  createdAt DateTime @default(now())
+  issues    Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@map("issue_responses")
+}
+
+// Modified Member model - now independent of Users
+model Member {
+  id              String    @id @default(cuid())
+  userId          String?   @unique @map("user_id")
+  image           String?
+  name            String
+  email           String    @unique
+  gender          String
+  birthdate       DateTime  @db.Date
+  phoneNumber     String    @unique @map("phone_number")
+  educationLevel  String    @map("education_level")
+  educationTitle  String?   @map("education_title")
+  fieldOfInterest String    @map("field_of_interest")
+  skills          String
+  bio             String
+  address         String
+  domicile        String
+  position        String    @default("anggota")
+  departmentId    String?   @map("department_id")
+  subDepartmentId String?   @map("sub_department_id")
+  subUnitId       String?   @unique @map("sub_unit_id")
+  socials         Json?
+  joinedAt        DateTime? @map("joined_at")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  committee_member CommitteeMember[]
+  users            Users?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  subunit          SubUnit?          @relation("SubUnitMembers", fields: [subUnitId], references: [id], onDelete: SetNull, map: "members_sub_unit_id_fkey_subunitmembers")
+  scientific_work  ScientificWork[]
+  department       Department?       @relation("DepartmentMembers", fields: [departmentId], references: [id], onDelete: SetNull)
+  sub_department   SubDepartment?    @relation("SubDepartmentMembers", fields: [subDepartmentId], references: [id], onDelete: SetNull)
+
+  // Head relationships
+  department_head     Department?    @relation("DepartmentHead")
+  sub_department_head SubDepartment? @relation("SubDepartmentHead")
+  sub_unit_head       SubUnit?       @relation("SubUnitHead")
+
+  @@map("members")
+}
+
+model News {
+  id            String     @id @default(cuid())
+  type          NewsType   @default(INTERNAL)
+  title         String
+  slug          String     @unique
+  content       String?    @db.Text
+  excerpt       String?    @db.Text
+  externalUrl   String?    @map("external_url")
+  sourceName    String?    @map("source_name")
+  featuredImage String?    @map("featured_image")
+  authorId      String     @map("author_id")
+  status        NewsStatus @default(DRAFT)
+  subunitId     String?    @map("subunit_id")
+  publishedAt   DateTime?  @map("published_at")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  users         Users           @relation(fields: [authorId], references: [id])
+  subunit       SubUnit?        @relation(fields: [subunitId], references: [id])
+  news_tags     TagOnNews[]
+  gallery_items GalleryItem[]
+  PartnerOnNews PartnerOnNews[]
+
+  @@index([authorId])
+  @@index([subunitId])
+  @@index([status])
+  @@index([type])
+  @@map("news")
+}
+
+model Tags {
+  id                   String                 @id @default(cuid())
+  name                 String                 @unique
+  news_tags            TagOnNews[]
+  TagOnSubUnitActivity TagOnSubUnitActivity[]
+
+  @@map("news_tags")
+}
+
+model TagOnNews {
+  id     String @id @default(cuid())
+  newsId String @map("news_id")
+  tagId  String @map("tag_id")
+  news   News   @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  tag    Tags   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([newsId, tagId])
+  @@index([newsId])
+  @@index([tagId])
+  @@map("news_tag_on_news")
+}
+
+model TagOnSubUnitActivity {
+  id                String          @id @default(cuid())
+  tagId             String          @map("tag_id")
+  subUnitActivityId String          @map("subunit_activity_id")
+  tag               Tags            @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  subunit_activity  SubUnitActivity @relation(fields: [subUnitActivityId], references: [id], onDelete: Cascade)
+
+  @@unique([tagId, subUnitActivityId])
+  @@index([subUnitActivityId])
+  @@index([tagId])
+  @@map("tag_on_subunit_activity")
+}
+
+model Partners {
+  id           String   @id @default(cuid())
+  image        String
+  name         String
+  abbreviation String
+  website      String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  PartnerOnNews            PartnerOnNews[]
+  PartnerOnSubUnitActivity PartnerOnSubUnitActivity[]
+
+  @@map("partners")
+}
+
+model PartnerOnNews {
+  id         String   @id @default(cuid())
+  newsId     String   @map("news_id")
+  partnersId String   @map("partners_id")
+  news       News     @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  partners   Partners @relation(fields: [partnersId], references: [id], onDelete: Cascade)
+
+  @@unique([newsId, partnersId])
+  @@index([newsId])
+  @@index([partnersId])
+  @@map("news_partner_on_news")
+}
+
+model PartnerOnSubUnitActivity {
+  id              String          @id @default(cuid())
+  partnersId      String          @map("partners_id")
+  subUnitActId    String          @map("subunit_activity_id")
+  partners        Partners        @relation(fields: [partnersId], references: [id], onDelete: Cascade)
+  subunitActivity SubUnitActivity @relation(fields: [subUnitActId], references: [id], onDelete: Cascade)
+
+  @@unique([partnersId, subUnitActId])
+  @@index([partnersId])
+  @@index([subUnitActId])
+  @@map("partners_on_subunit_activity")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  users     Users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model ScientificWork {
+  id              String   @id @default(cuid())
+  title           String
+  type            WorkType
+  abstract        String
+  fileUrl         String   @map("file_url")
+  thumbnailUrl    String?  @map("thumbnail_url")
+  publishedDate   DateTime @map("published_date")
+  createdAt       DateTime @default(now()) @map("created_at")
+  primaryAuthorId String   @map("primary_author_id")
+  users           Users    @relation(fields: [primaryAuthorId], references: [id])
+  member          Member[]
+
+  @@map("scientific_works")
+}
+
+model SiteSettings {
+  id           String   @id @default(cuid())
+  siteName     String   @map("site_name")
+  orgName      String   @map("org_name")
+  tagline      String?
+  logo         String?
+  aboutText    String?  @map("about_text")
+  visionText   String[] @map("vision_text")
+  missionText  String[] @map("mission_text")
+  contactEmail String?  @map("contact_mail")
+  contactPhone String?  @map("contact_phone")
+  address      String?
+  socialLinks  Json?    @map("social_links")
+  updatedAt    DateTime @map("updated_at")
+
+  @@map("site_settings")
+}
+
+model SubDepartment {
+  id           String  @id @default(cuid())
+  departmentId String  @map("department_id")
+  name         String
+  description  String?
+  headMemberId String? @unique @map("head_member_id")
+
+  // Relations
+  department  Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  head_member Member?    @relation("SubDepartmentHead", fields: [headMemberId], references: [id], onDelete: SetNull)
+  members     Member[]   @relation("SubDepartmentMembers")
+
+  @@map("sub_department")
+}
+
+model SubUnit {
+  id           String   @id @default(cuid())
+  name         String
+  description  String
+  abbreviation String   @map("abbreviation")
+  primaryColor String   @map("primary_color")
+  logo         String?
+  order        Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  headMemberId String?  @unique @map("head_member_id")
+
+  // Relation
+  gallery_item     GalleryItem[]
+  subunit_activity SubUnitActivity[]
+  head_member      Member?           @relation("SubUnitHead", fields: [headMemberId], references: [id], onDelete: SetNull)
+  Member           Member[]          @relation("SubUnitMembers")
+  news             News[]
+
+  @@map("subunit")
+}
+
+model SubUnitActivity {
+  id                       String                     @id @default(cuid())
+  subUnitId                String                     @map("subunit_id")
+  name                     String
+  description              String
+  date                     DateTime
+  location                 String?
+  gallery_item             GalleryItem[]
+  subunit                  SubUnit                    @relation(fields: [subUnitId], references: [id], onDelete: Cascade)
+  PartnerOnSubUnitActivity PartnerOnSubUnitActivity[]
+  TagOnSubUnitActivity     TagOnSubUnitActivity[]
+
+  @@map("subunit_activity")
+}
+
+model TimelineEvent {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  date        DateTime
+  imageUrl    String?  @map("image_url")
+  order       Int
+
+  @@map("timeline_events")
+}
+
+model Accounts {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Sessions {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         Users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Users {
+  id             String           @id @default(cuid())
+  name           String
+  username       String           @unique
+  email          String?          @unique
+  emailVerified  DateTime?        @map("email_verified")
+  password       String
+  gender         Gender           @default(MALE)
+  role           Role             @default(ANGGOTA)
+  image          String?
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  Issue          Issue[]
+  Member         Member?
+  News           News[]
+  Notification   Notification[]
+  ScientificWork ScientificWork[]
+  accounts       Accounts[]
+  sessions       Sessions[]
+
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+enum ActivityStatus {
+  UPCOMING
+  COMPLETED
+  CANCELED
+}
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum Role {
+  SUPERADMIN
+  ADMIN
+  PENULIS_BERITA
+  ANGGOTA
+}
+
+enum WorkType {
+  PAPER
+  POSTER
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum NewsType {
+  INTERNAL
+  EXTERNAL
+}
+
+enum NewsStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
