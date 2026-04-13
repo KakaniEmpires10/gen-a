@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { AlertCircleIcon, RefreshCw, Search, UserPlus } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/Skeletons/TableSkeleton";
 
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[];
@@ -95,14 +96,15 @@ function DataTableUser<TData extends Users, TValue>({ columns }: DataTableProps<
                         </TableHeader>
                         <TableBody>
                             {(isLoading || isValidating && !usersData) ? (
-                                <TableRow>
-                                    <TableCell
-                                        colSpan={columns.length}
-                                        className="h-24 text-center font-bold"
-                                    >
-                                        Loading...
-                                    </TableCell>
-                                </TableRow>
+                                <TableSkeleton cols={columns.length} rows={4} rowHeight="h-12" />
+                                // <TableRow>
+                                //     <TableCell
+                                //         colSpan={columns.length}
+                                //         className="h-24 text-center font-bold"
+                                //     >
+                                //         Loading...
+                                //     </TableCell>
+                                // </TableRow>
                             ) : error ? (
                                 <TableRow>
                                     <TableCell

@@ -27,6 +27,7 @@ import ModalInsert from "../modalSubDept/ModalInsert";
 import useSWR, { mutate } from "swr";
 import { TableSubDepartment } from "./Column";
 import { SubDepartment } from "@prisma/client";
+import { TableSkeleton } from "@/components/Skeletons/TableSkeleton";
 
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[];
@@ -120,14 +121,15 @@ export function DataTableSubDept<TData extends TableSubDepartment, TValue>({
                         </TableHeader>
                         <TableBody>
                             {(isLoading || isValidating && !subDepartmentData) ? (
-                                <TableRow>
-                                    <TableCell
-                                        colSpan={columns.length}
-                                        className="h-24 text-center font-bold"
-                                    >
-                                        Loading...
-                                    </TableCell>
-                                </TableRow>
+                                <TableSkeleton cols={columns.length} rows={4} rowHeight="h-12" />
+                                // <TableRow>
+                                //     <TableCell
+                                //         colSpan={columns.length}
+                                //         className="h-24 text-center font-bold"
+                                //     >
+                                //         Loading...
+                                //     </TableCell>
+                                // </TableRow>
                             ) : error ? (
                                 <TableRow>
                                     <TableCell

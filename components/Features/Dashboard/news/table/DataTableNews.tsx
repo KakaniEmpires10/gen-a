@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/Skeletons/TableSkeleton";
 
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[];
@@ -101,14 +102,15 @@ export function DataTableNews<TData extends News, TValue>({
                         </TableHeader>
                         <TableBody>
                             {(isLoading || isValidating && !newsData) ? (
-                                <TableRow>
-                                    <TableCell
-                                        colSpan={columns.length}
-                                        className="h-24 text-center font-bold"
-                                    >
-                                        Loading...
-                                    </TableCell>
-                                </TableRow>
+                                <TableSkeleton cols={columns.length} rows={4} rowHeight="h-12" />
+                                // <TableRow>
+                                //     <TableCell
+                                //         colSpan={columns.length}
+                                //         className="h-24 text-center font-bold"
+                                //     >
+                                //         Loading...
+                                //     </TableCell>
+                                // </TableRow>
                             ) : error ? (
                                 <TableRow>
                                     <TableCell

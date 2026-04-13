@@ -26,6 +26,7 @@ import { Search, RefreshCw, Handshake, AlertCircleIcon } from "lucide-react";
 import ModalInsert from "../modal/ModalInsert";
 import useSWR, { mutate } from "swr";
 import { Partners } from "@prisma/client";
+import { TableSkeleton } from "@/components/Skeletons/TableSkeleton";
 
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[];
@@ -121,14 +122,15 @@ export function DataTablePartners<TData extends Partners, TValue>({
                         </TableHeader>
                         <TableBody>
                             {(isLoading || isValidating && !data) ? (
-                                <TableRow>
-                                    <TableCell
-                                        colSpan={columns.length}
-                                        className="h-24 text-center font-bold"
-                                    >
-                                        Loading...
-                                    </TableCell>
-                                </TableRow>
+                                <TableSkeleton cols={columns.length} rows={4} rowHeight="h-12" />
+                                // <TableRow>
+                                //     <TableCell
+                                //         colSpan={columns.length}
+                                //         className="h-24 text-center font-bold"
+                                //     >
+                                //         Loading...
+                                //     </TableCell>
+                                // </TableRow>
                             ) : error ? (
                                 <TableRow>
                                     <TableCell

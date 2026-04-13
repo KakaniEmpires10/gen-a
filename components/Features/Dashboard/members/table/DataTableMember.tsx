@@ -27,6 +27,7 @@ import useSWR, { mutate } from "swr";
 import Link from "next/link";
 import { Member } from "@prisma/client";
 import { MemberResponse } from "../member.constant";
+import { TableSkeleton } from "@/components/Skeletons/TableSkeleton";
 
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[];
@@ -113,14 +114,15 @@ export function DataTableMember<TData extends Member, TValue>({
                         </TableHeader>
                         <TableBody>
                             {(isLoading || isValidating && !memberData) ? (
-                                <TableRow>
-                                    <TableCell
-                                        colSpan={columns.length}
-                                        className="h-24 text-center font-bold"
-                                    >
-                                        Loading...
-                                    </TableCell>
-                                </TableRow>
+                                <TableSkeleton cols={columns.length} rows={4} rowHeight="h-12" />
+                                // <TableRow>
+                                //     <TableCell
+                                //         colSpan={columns.length}
+                                //         className="h-24 text-center font-bold"
+                                //     >
+                                //         Loading...
+                                //     </TableCell>
+                                // </TableRow>
                             ) : error ? (
                                 <TableRow>
                                     <TableCell
