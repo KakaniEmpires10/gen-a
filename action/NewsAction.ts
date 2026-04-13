@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { newsFormSchema } from "@/components/Features/Dashboard/news/news.constant";
 import { deleteFromCloudinary, getPublicIdFromUrl } from "@/lib/cloudinary/image-uploader";
 import prisma from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { NewsStatus, Prisma } from "@prisma/client";
 import { unstable_cache as cache, revalidateTag } from "next/cache";
 import { z } from "zod";
 
@@ -296,6 +296,27 @@ export const updateNews = async (
       success: false,
       message: "Gagal mengubah Berita (500)",
     };
+  }
+};
+
+export const updateNewsStatus = async (id: string, status: NewsStatus) => {
+  if (!id) return { success: false, message: "Id tidak ditemukan" };
+
+  try {
+    await prisma.news.update({
+      where: { id },
+      data: { status },
+    });
+
+    revalidateTag("news");
+
+    return {
+      success: true,
+      message: `Status diubah ke ${status.toLowerCase()}`,
+    };
+  } catch (err) {
+    console.error(err);
+    return { success: false, message: "Gagal mengubah status (500)" };
   }
 };
 

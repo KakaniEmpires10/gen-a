@@ -7,8 +7,9 @@ import { format } from "date-fns"
 import { id } from "date-fns/locale"
 import TableButton from "./TableButton"
 import Image from "next/image"
-import { Archive, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Clock } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import StatusDropdown from "./StatusDropDown"
 
 // ── Author Avatar ──────────────────────────────────────────────
 function AuthorAvatar({ name, image }: { name: string; image?: string | null }) {
@@ -59,25 +60,6 @@ function Thumbnail({ src }: { src?: string | null }) {
         </div>
     )
 }
-
-// ── Status config ──────────────────────────────────────────────
-const statusConfig = {
-    PUBLISHED: {
-        label: "Published",
-        variant: "soft-success" as const,
-        icon: CheckCircle2,
-    },
-    DRAFT: {
-        label: "Draft",
-        variant: "soft-warning" as const,
-        icon: Clock,
-    },
-    ARCHIVED: {
-        label: "Archived",
-        variant: "muted" as const,
-        icon: Archive,
-    },
-} satisfies Record<string, { label: string; variant: string; icon: React.ElementType }>
 
 export const columns: ColumnDef<NewsWithRelations>[] = [
     {
@@ -167,8 +149,7 @@ export const columns: ColumnDef<NewsWithRelations>[] = [
         header: ({ column }) => (
             <Button
                 variant="ghost"
-                size="sm"
-                className="-ml-3 h-8 gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                className="-ml-4 pb-0"
                 onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
             >
                 Publish
@@ -195,19 +176,12 @@ export const columns: ColumnDef<NewsWithRelations>[] = [
     {
         accessorKey: "status",
         header: "Status",
-        cell: ({ row }) => {
-            const status = row.original.status
-            const config = statusConfig[status as keyof typeof statusConfig]
-            if (!config) return <Badge variant="outline">{status}</Badge>
-
-            const Icon = config.icon
-            return (
-                <Badge variant={config.variant} className="gap-1">
-                    <Icon className="size-3" />
-                    {config.label}
-                </Badge>
-            )
-        },
+        cell: ({ row }) => (
+            <StatusDropdown
+                id={row.original.id}
+                currentStatus={row.original.status}
+            />
+        ),
     },
 
     {

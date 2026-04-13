@@ -35,7 +35,8 @@ import {
     UploadIcon,
     XIcon,
     AlertCircleIcon,
-    CalendarIcon
+    CalendarIcon,
+    Lock,
 } from "lucide-react"
 import { cn, generateSlug } from "@/lib/utils"
 import Image from "next/image"
@@ -59,6 +60,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { uploadToCloudinaryClient } from "@/lib/cloudinary/image-uploader-client"
 import { addNews, updateNews } from "@/action/NewsAction"
 import { mutate } from "swr"
+import { Badge } from "@/components/ui/badge"
 
 interface FormNewsProps {
     newsId?: string
@@ -70,18 +72,34 @@ interface FormNewsProps {
     session: Session | null
 }
 
-export default function FormNews({ newsId, initialData, tags: tagsData, partners: partnersData, subunits, authors, session }: FormNewsProps) {
+export default function FormNews({
+    newsId,
+    initialData,
+    tags: tagsData,
+    partners: partnersData,
+    subunits,
+    authors,
+    session,
+}: FormNewsProps) {
     const router = useRouter()
+    const isEditMode = !!newsId
 
+    // ── Slug state ─────────────────────────────────────────────
     const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false)
     const [slugChecking, setSlugChecking] = useState(false)
     const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null)
 
-    const [tags, setTags] = useState<TagInputType[]>([]);
-    const [activeTagsIndex, setActiveTagsIndex] = useState<number | null>(null);
-    const [partners, setPartners] = useState<TagInputType[]>([]);
-    const [activePartnersIndex, setActivePartnersIndex] = useState<number | null>(null);
+    // ── Tag & partner state ────────────────────────────────────
+    const [tags, setTags] = useState<TagInputType[]>(
+        initialData?.tagIds ?? []
+    )
+    const [activeTagsIndex, setActiveTagsIndex] = useState<number | null>(null)
+    const [partners, setPartners] = useState<TagInputType[]>(
+        initialData?.partnerIds ?? []
+    )
+    const [activePartnersIndex, setActivePartnersIndex] = useState<number | null>(null)
 
+    // ── File upload ────────────────────────────────────────────
     const maxSizeMB = 4
     const maxSize = maxSizeMB * 1024 * 1024
 
@@ -98,55 +116,85 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
         },
     ] = useFileUpload({
         accept: "image/svg+xml,image/png,image/jpeg,image/jpg,image/webp",
-        maxSize
-    });
+        maxSize,
+    })
 
-    const previewUrl = files[0]?.preview || null;
+    // Existing image from DB (edit mode)
+    const [existingImage, setExistingImage] = useState<string | null>(
+        initialData?.featuredImage ?? null
+    )
 
-    // Check if user is admin/superadmin
+    // What to show in the preview: new upload takes priority
+    const previewUrl = files[0]?.preview ?? existingImage ?? null
+    // const hasImage = !!previewUrl
+
+    // ── Role check ─────────────────────────────────────────────
     const isAdminOrSuperadmin =
         session?.user?.role === "ADMIN" || session?.user?.role === "SUPERADMIN"
 
+    // ── Form ───────────────────────────────────────────────────
     const form = useForm<z.infer<typeof newsFormSchema>>({
         resolver: zodResolver(newsFormSchema),
-        defaultValues: initialData || {
-            type: "INTERNAL",
-            status: "DRAFT",
-            tagIds: [],
-            partnerIds: [],
-            title: "",
-            content: "",
-            excerpt: "",
-            externalUrl: "",
-            sourceName: "",
-            authorId: session?.user?.id,
-            subunitId: "",
-            featuredImage: "",
-            publishedAt: new Date(),
-        },
+        defaultValues: initialData
+            ? {
+                ...initialData,
+                tagIds: initialData.tagIds ?? [],
+                partnerIds: initialData.partnerIds ?? [],
+            }
+            : {
+                type: "INTERNAL",
+                status: "DRAFT",
+                tagIds: [],
+                partnerIds: [],
+                title: "",
+                content: "",
+                excerpt: "",
+                externalUrl: "",
+                sourceName: "",
+                authorId: session?.user?.id,
+                subunitId: "",
+                featuredImage: "",
+                publishedAt: new Date(),
+            },
     })
 
     const watchType = form.watch("type")
     const watchTitle = form.watch("title")
     const watchSlug = form.watch("slug")
+    const isExternal = watchType === "EXTERNAL"
 
-    const tagsAutoComplete = tagsData ? tagsData.map(item => ({ id: item.id, text: item.name })) : [];
-    const partnerAutoComplete = partnersData ? partnersData.map(item => ({ id: item.id, text: item.abbreviation })) : [];
+    const tagsAutoComplete = tagsData
+        ? tagsData.map((item) => ({ id: item.id, text: item.name }))
+        : []
+    const partnerAutoComplete = partnersData
+        ? partnersData.map((item) => ({ id: item.id, text: item.abbreviation }))
+        : []
 
-    // AUTO GENERATE SLUG
+    // ── Sync tag & partner field values on mount (edit mode) ───
     useEffect(() => {
-        if (newsId) return
+        if (isEditMode && initialData?.tagIds?.length) {
+            setTags(initialData.tagIds)
+            form.setValue("tagIds", initialData.tagIds as [TagInputType, ...TagInputType[]])
+        }
+        if (isEditMode && initialData?.partnerIds?.length) {
+            setPartners(initialData.partnerIds)
+            form.setValue("partnerIds", initialData.partnerIds as [TagInputType, ...TagInputType[]])
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
+    // ── Auto-generate slug (create mode, internal only) ────────
+    useEffect(() => {
+        if (isEditMode || isExternal) return
         if (!isSlugManuallyEdited) {
-            const slug = generateSlug(watchTitle || "")
-            form.setValue("slug", slug)
+            form.setValue("slug", generateSlug(watchTitle || ""))
             setSlugAvailable(null)
         }
-    }, [watchTitle, isSlugManuallyEdited, form, newsId])
+    }, [watchTitle, isSlugManuallyEdited, isExternal, isEditMode, form])
 
-    // VALIDATE SLUG (DEBOUNCED)
+    // ── Validate slug (create + internal only) ─────────────────
     useEffect(() => {
-        if (!watchSlug || newsId) return
+        if (!watchSlug || isEditMode || isExternal) return
 
         const controller = new AbortController()
         setSlugChecking(true)
@@ -170,98 +218,126 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
             clearTimeout(timer)
             controller.abort()
         }
-    }, [watchSlug, newsId])
+    }, [watchSlug, newsId, isEditMode, isExternal])
 
+    // ── Submit ─────────────────────────────────────────────────
     const onSubmit = async (values: z.infer<typeof newsFormSchema>) => {
         if (!isAdminOrSuperadmin) {
             values.authorId = session?.user?.id
         }
 
-        if (!slugAvailable && !newsId) {
+        // Slug check only for create + internal
+        if (!isEditMode && !isExternal && !slugAvailable) {
             toast.error("Slug sudah digunakan, silakan ubah judul")
             return
         }
 
-        if (!files.length) {
+        // Image validation: must have either new file or existing image
+        if (!files.length && !existingImage) {
             toast.error("Gambar thumbnail wajib diunggah")
             return
         }
 
-        const toastId = toast.loading(newsId ?  "Meng-update..." : "Menyimpan...");
+        const toastId = toast.loading(isEditMode ? "Meng-update..." : "Menyimpan...")
 
-        const uploadResult = await uploadToCloudinaryClient(files, toastId, "berita", true);
+        // Only upload if a new file was picked
+        if (files.length) {
+            const uploadResult = await uploadToCloudinaryClient(files, toastId, "berita", true)
 
-        if (!uploadResult.success) {
-            toast.error("Gagal mengupload foto thumbnail", { id: toastId });
-            return;
+            if (!uploadResult.success) {
+                toast.error("Gagal mengupload foto thumbnail", { id: toastId })
+                return
+            }
+
+            if (uploadResult.url) {
+                values = { ...values, featuredImage: uploadResult.url }
+            }
+        } else {
+            // Keep the existing image URL
+            values = { ...values, featuredImage: existingImage! }
         }
 
-        if (uploadResult.url) {
-            values = { ...values, featuredImage: uploadResult.url };
+        toast.loading(isEditMode ? "Mengupdate berita..." : "Menyimpan berita...", { id: toastId })
+
+        const res = isEditMode
+            ? await updateNews(newsId, values)
+            : await addNews(values)
+
+        if (!res || res.success === false) {
+            toast.error(res.message || "Terjadi kesalahan, hubungi admin 🙏", { id: toastId })
+            return
         }
 
-        toast.loading(newsId ? "Mengupdate berita..." : "Menyimpan berita...")
-
-        const res = newsId ? await updateNews(newsId, values) : await addNews(values);
-
-        if (!res || res.success == false) {
-            toast.error(res.message || "Terjadi kesalahan, hubungi admin 🙏", { id: toastId });
-            return;
-        }
-
-        toast.success(res.message, { id: toastId });
-
-        mutate("/api/news");
-
-        form.reset();
-        router.push("/dashboard/news");
+        toast.success(res.message, { id: toastId })
+        mutate("/api/news")
+        form.reset()
+        router.push("/dashboard/news")
     }
 
     return (
         <div className="space-y-4">
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+
+                    {/* ── Tipe Berita ── */}
                     <div className="space-y-4">
                         <div className="space-y-3">
                             <Label className="block mt-4">Tipe Berita</Label>
-                            <div className="bg-input/50 inline-flex h-9 rounded-md p-1 w-full sm:w-auto overflow-x-auto">
-                                <RadioGroup
-                                    value={watchType}
-                                    onValueChange={(value) => {
-                                        form.setValue("type", value as "INTERNAL" | "EXTERNAL");
-                                    }}
-                                    className="group after:bg-background has-focus-visible:after:border-ring has-focus-visible:after:ring-ring/50 relative inline-grid grid-cols-2 items-center gap-0 text-sm font-medium after:absolute after:inset-y-0 after:w-1/2 after:rounded-sm after:shadow-xs after:transition-[transform,box-shadow] after:duration-500 after:[transition-timing-function:cubic-bezier(0.16,1,0.3,1)] has-focus-visible:after:ring-[3px] data-[state=external]:after:translate-x-0 data-[state=internal]:after:translate-x-full min-w-full sm:min-w-0"
-                                    data-state={watchType.toLowerCase()}
-                                >
-                                    <label className="group-data-[state=internal]:text-muted-foreground/70 relative z-10 inline-flex h-full min-w-[80px] cursor-pointer items-center justify-center px-3 sm:px-6 whitespace-nowrap transition-colors duration-300 select-none text-xs sm:text-sm">
-                                        External
-                                        <RadioGroupItem id="external" value="EXTERNAL" className="sr-only" />
-                                    </label>
-                                    <label className="group-data-[state=external]:text-muted-foreground/70 relative z-10 inline-flex h-full min-w-[80px] cursor-pointer items-center justify-center px-3 sm:px-6 whitespace-nowrap transition-colors duration-300 select-none text-xs sm:text-sm">
-                                        Internal
-                                        <RadioGroupItem id="internal" value="INTERNAL" className="sr-only" />
-                                    </label>
-                                </RadioGroup>
-                            </div>
+
+                            {isEditMode ? (
+                                // Locked in edit mode
+                                <div className="flex items-center gap-2">
+                                    <Badge variant={isExternal ? "soft-indigo" : "soft-info"} className="gap-1.5 text-sm px-3 py-1.5">
+                                        <Lock className="size-3" />
+                                        {isExternal ? "Eksternal" : "Internal"}
+                                    </Badge>
+                                    <p className="text-xs text-muted-foreground">
+                                        Tipe berita tidak dapat diubah setelah dibuat.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="bg-input/50 inline-flex h-9 rounded-md p-1 w-full sm:w-auto overflow-x-auto">
+                                    <RadioGroup
+                                        value={watchType}
+                                        onValueChange={(value) => {
+                                            form.setValue("type", value as "INTERNAL" | "EXTERNAL")
+                                        }}
+                                        className="group after:bg-background has-focus-visible:after:border-ring has-focus-visible:after:ring-ring/50 relative inline-grid grid-cols-2 items-center gap-0 text-sm font-medium after:absolute after:inset-y-0 after:w-1/2 after:rounded-sm after:shadow-xs after:transition-[transform,box-shadow] after:duration-500 after:[transition-timing-function:cubic-bezier(0.16,1,0.3,1)] has-focus-visible:after:ring-[3px] data-[state=external]:after:translate-x-0 data-[state=internal]:after:translate-x-full min-w-full sm:min-w-0"
+                                        data-state={watchType.toLowerCase()}
+                                    >
+                                        <label className="group-data-[state=internal]:text-muted-foreground/70 relative z-10 inline-flex h-full min-w-[80px] cursor-pointer items-center justify-center px-3 sm:px-6 whitespace-nowrap transition-colors duration-300 select-none text-xs sm:text-sm">
+                                            External
+                                            <RadioGroupItem id="external" value="EXTERNAL" className="sr-only" />
+                                        </label>
+                                        <label className="group-data-[state=external]:text-muted-foreground/70 relative z-10 inline-flex h-full min-w-[80px] cursor-pointer items-center justify-center px-3 sm:px-6 whitespace-nowrap transition-colors duration-300 select-none text-xs sm:text-sm">
+                                            Internal
+                                            <RadioGroupItem id="internal" value="INTERNAL" className="sr-only" />
+                                        </label>
+                                    </RadioGroup>
+                                </div>
+                            )}
                         </div>
+
                         <div>
                             <h6 className="font-bold text-muted-foreground text-sm">Note: </h6>
-                            {watchType === "INTERNAL" ? (
+                            {isExternal ? (
                                 <p className="text-xs text-muted-foreground">
-                                    Berita yang akan ditulis sendiri dan ditayangkan di web ini kepada khalayak publik.
+                                    Berita akan mengarah ke URL eksternal (ex. Detik, Berita Aceh, dll). Pastikan untuk mengisi link dan deskripsi singkatnya.
                                 </p>
                             ) : (
                                 <p className="text-xs text-muted-foreground">
-                                    Berita akan mengarah ke URL eksternal (ex. Detik, Berita Aceh, dll). Pastikan untuk mengisi link dan deskripsi singkatnya.
+                                    Berita yang akan ditulis sendiri dan ditayangkan di web ini kepada khalayak publik.
                                 </p>
                             )}
                             <Separator className="mt-2" />
                         </div>
                     </div>
 
+                    {/* ── Identitas Berita ── */}
                     <Card>
                         <CardContent className="p-6 grid grid-cols-12 gap-4">
                             <FormHeader title="Identitas Berita" isColumn />
+
                             <FormField
                                 control={form.control}
                                 name="title"
@@ -269,115 +345,114 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
                                     <FormItem className="col-span-12">
                                         <FormLabel>Judul Berita</FormLabel>
                                         <FormControl>
-                                            <Input
-                                                placeholder="Masukkan judul berita..."
-                                                {...field}
-                                            />
+                                            <Input placeholder="Masukkan judul berita..." {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
                             />
 
-                            {/* SLUG INPUT */}
-                            <FormField
-                                control={form.control}
-                                name="slug"
-                                render={({ field }) => (
-                                    <FormItem className="col-span-12 lg:col-span-4">
-                                        <FormLabel>URL Artikel</FormLabel>
-                                        <FormControl>
-                                            <div className="relative flex items-center gap-1">
-
-                                                <Input
-                                                    {...field}
-                                                    onChange={(e) => {
-                                                        setIsSlugManuallyEdited(true)
-                                                        field.onChange(generateSlug(e.target.value))
-                                                    }}
-                                                    className={cn(
-                                                        slugAvailable === false && "border-destructive",
-                                                        slugAvailable === true && "border-success"
+                            {/* Slug — only for internal news */}
+                            {!isExternal && (
+                                <>
+                                    <FormField
+                                        control={form.control}
+                                        name="slug"
+                                        render={({ field }) => (
+                                            <FormItem className="col-span-12 lg:col-span-4">
+                                                <FormLabel>URL Artikel</FormLabel>
+                                                <FormControl>
+                                                    <div className="relative flex items-center gap-1">
+                                                        <Input
+                                                            {...field}
+                                                            disabled={isEditMode}
+                                                            onChange={(e) => {
+                                                                setIsSlugManuallyEdited(true)
+                                                                field.onChange(generateSlug(e.target.value))
+                                                            }}
+                                                            className={cn(
+                                                                isEditMode && "bg-muted text-muted-foreground cursor-not-allowed",
+                                                                !isEditMode && slugAvailable === false && "border-destructive",
+                                                                !isEditMode && slugAvailable === true && "border-success",
+                                                            )}
+                                                            placeholder="judul-artikel-anda"
+                                                        />
+                                                        {!isEditMode && isSlugManuallyEdited && (
+                                                            <Button
+                                                                type="button"
+                                                                size="xs"
+                                                                variant="ghost"
+                                                                onClick={() => {
+                                                                    setIsSlugManuallyEdited(false)
+                                                                    form.setValue("slug", generateSlug(watchTitle || ""))
+                                                                }}
+                                                            >
+                                                                Auto
+                                                            </Button>
+                                                        )}
+                                                        {!isEditMode && (
+                                                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                                                {slugChecking && <Loader2 className="h-4 w-4 animate-spin" />}
+                                                                {!slugChecking && slugAvailable === true && (
+                                                                    <CheckCircle2 className="h-4 w-4 text-success" />
+                                                                )}
+                                                                {!slugChecking && slugAvailable === false && (
+                                                                    <AlertCircle className="h-4 w-4 text-destructive" />
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </FormControl>
+                                                <FormDescription>
+                                                    {isEditMode ? (
+                                                        <span className="text-muted-foreground flex items-center gap-1">
+                                                            <Lock className="size-3" /> Slug tidak dapat diubah setelah dibuat
+                                                        </span>
+                                                    ) : slugAvailable === false ? (
+                                                        <span className="text-destructive">Slug sudah digunakan</span>
+                                                    ) : slugAvailable === true ? (
+                                                        <span className="text-success">Slug tersedia</span>
+                                                    ) : (
+                                                        <span>Akan dibuat otomatis dari judul</span>
                                                     )}
-                                                    placeholder="judul-artikel-anda"
-                                                />
+                                                </FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
 
-                                                {/* AUTO RESET */}
-                                                {isSlugManuallyEdited && (
-                                                    <Button
-                                                        type="button"
-                                                        size="xs"
-                                                        variant="ghost"
-                                                        onClick={() => {
-                                                            setIsSlugManuallyEdited(false)
-                                                            form.setValue("slug", generateSlug(watchTitle || ""))
-                                                        }}
-                                                    >
-                                                        Auto
-                                                    </Button>
-                                                )}
-
-                                                {/* STATUS ICON */}
-                                                <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                                                    {slugChecking && <Loader2 className="h-4 w-4 animate-spin" />}
-                                                    {!slugChecking && slugAvailable === true && (
-                                                        <CheckCircle2 className="h-4 w-4 text-success" />
-                                                    )}
-                                                    {!slugChecking && slugAvailable === false && (
-                                                        <AlertCircle className="h-4 w-4 text-destructive" />
-                                                    )}
-                                                </div>
+                                    {/* URL Preview */}
+                                    <div className="col-span-12 lg:col-span-8">
+                                        <Label className="mb-2 block">Preview URL</Label>
+                                        <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 rounded-lg border bg-muted/40 px-4 py-1.5">
+                                            <div className="flex items-center gap-2 mt-1 md:mt-0">
+                                                <span className="size-3 rounded-full bg-red-400" />
+                                                <span className="size-3 rounded-full bg-yellow-400" />
+                                                <span className="size-3 rounded-full bg-green-400" />
                                             </div>
-                                        </FormControl>
-
-                                        <FormDescription>
-                                            {slugAvailable === false && (
-                                                <span className="text-destructive">Slug sudah digunakan</span>
-                                            )}
-                                            {slugAvailable === true && (
-                                                <span className="text-success">Slug tersedia</span>
-                                            )}
-                                            {slugAvailable === null && (
-                                                <span>Akan dibuat otomatis dari judul</span>
-                                            )}
-                                        </FormDescription>
-
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-
-                            {/* URL PREVIEW (RIGHT) */}
-                            <div className="col-span-12 lg:col-span-8">
-                                <Label className="mb-2 block">Preview URL</Label>
-
-                                <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 rounded-lg border bg-muted/40 px-4 py-1.5">
-
-                                    {/* Browser dots */}
-                                    <div className="flex items-center gap-2 mt-1 md:mt-0">
-                                        <span className="size-3 rounded-full bg-red-400" />
-                                        <span className="size-3 rounded-full bg-yellow-400" />
-                                        <span className="size-3 rounded-full bg-green-400" />
+                                            <div className="text-sm font-mono break-all">
+                                                <span className="text-muted-foreground">
+                                                    {process.env.NEXT_PUBLIC_BASE_URL}/news/
+                                                </span>
+                                                <span className="font-semibold">
+                                                    {watchSlug || "judul-artikel-anda"}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
+                                </>
+                            )}
 
-                                    {/* URL */}
-                                    <div className="text-sm font-mono break-all">
-                                        <span className="text-muted-foreground">
-                                            {process.env.NEXT_PUBLIC_BASE_URL}/news/
-                                        </span>
-                                        <span className="font-semibold">
-                                            {watchSlug || "judul-artikel-anda"}
-                                        </span>
-                                    </div>
-
-                                </div>
-                            </div>
-
+                            {/* ── Thumbnail ── */}
                             <div className="flex flex-col gap-2 col-span-12">
                                 <Label htmlFor="feature-img">Thumbnail</Label>
-                                <p className="text-xs text-muted-foreground">Upload Cover Image untuk berita yang akan di publish</p>
+                                <p className="text-xs text-muted-foreground">
+                                    {isEditMode
+                                        ? "Biarkan kosong untuk mempertahankan gambar saat ini. Upload baru untuk menggantinya."
+                                        : "Upload Cover Image untuk berita yang akan di publish"}
+                                </p>
+
                                 <div className="relative">
-                                    {/* Drop area */}
                                     <div
                                         onDragEnter={handleDragEnter}
                                         onDragLeave={handleDragLeave}
@@ -392,21 +467,19 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
                                             aria-label="Upload image file"
                                             id="feature-img"
                                         />
+
                                         {previewUrl ? (
                                             <div className="absolute inset-0 flex items-center justify-center p-4">
                                                 <Image
                                                     src={previewUrl}
-                                                    alt={files[0]?.file?.name || "Uploaded image"}
+                                                    alt="Featured image"
                                                     fill
                                                     className="mx-auto max-h-full rounded object-contain"
                                                 />
                                             </div>
                                         ) : (
                                             <div className="flex flex-col items-center justify-center px-4 py-3 text-center">
-                                                <div
-                                                    className="bg-background mb-2 flex size-11 shrink-0 items-center justify-center rounded-full border"
-                                                    aria-hidden="true"
-                                                >
+                                                <div className="bg-background mb-2 flex size-11 shrink-0 items-center justify-center rounded-full border">
                                                     <ImageIcon className="size-4 opacity-60" />
                                                 </div>
                                                 <p className="mb-1.5 text-sm font-medium">Letakkan Gambar Disini</p>
@@ -419,35 +492,47 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
                                                     className="mt-4"
                                                     onClick={openFileDialog}
                                                 >
-                                                    <UploadIcon
-                                                        className="-ms-1 size-4 opacity-60"
-                                                        aria-hidden="true"
-                                                    />
+                                                    <UploadIcon className="-ms-1 size-4 opacity-60" />
                                                     Pilih Gambar
                                                 </Button>
                                             </div>
                                         )}
                                     </div>
 
+                                    {/* Remove button */}
                                     {previewUrl && (
-                                        <div className="absolute top-4 right-4">
+                                        <div className="absolute top-4 right-4 z-10 flex gap-2">
+                                            {/* If showing existing image and no new file, show replace button */}
+                                            {!files.length && existingImage && (
+                                                <button
+                                                    type="button"
+                                                    onClick={openFileDialog}
+                                                    className="flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white hover:bg-black/80 transition-colors"
+                                                >
+                                                    <UploadIcon className="size-3" />
+                                                    Ganti
+                                                </button>
+                                            )}
                                             <button
                                                 type="button"
-                                                className="focus-visible:border-ring focus-visible:ring-ring/50 z-50 flex size-8 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white transition-[color,box-shadow] outline-none hover:bg-black/80 focus-visible:ring-[3px]"
-                                                onClick={() => removeFile(files[0]?.id)}
+                                                className="focus-visible:border-ring focus-visible:ring-ring/50 flex size-8 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white transition-[color,box-shadow] outline-none hover:bg-black/80 focus-visible:ring-[3px]"
+                                                onClick={() => {
+                                                    if (files.length) {
+                                                        removeFile(files[0]?.id)
+                                                    } else {
+                                                        setExistingImage(null)
+                                                    }
+                                                }}
                                                 aria-label="Remove image"
                                             >
-                                                <XIcon className="size-4" aria-hidden="true" />
+                                                <XIcon className="size-4" />
                                             </button>
                                         </div>
                                     )}
                                 </div>
 
                                 {errors.length > 0 && (
-                                    <div
-                                        className="text-destructive flex items-center gap-1 text-xs"
-                                        role="alert"
-                                    >
+                                    <div className="text-destructive flex items-center gap-1 text-xs" role="alert">
                                         <AlertCircleIcon className="size-3 shrink-0" />
                                         <span>{errors[0]}</span>
                                     </div>
@@ -456,26 +541,28 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
                         </CardContent>
                     </Card>
 
+                    {/* ── Konten Utama ── */}
                     <Card>
                         <CardContent className="p-6 grid grid-cols-12 gap-4">
                             <FormHeader title="Konten Utama" isColumn />
-                            {watchType === "INTERNAL" ? (
-                                <FormInternal form={form} />
-                            ) : (
+                            {isExternal ? (
                                 <FormExternal form={form} />
-                            )
-                            }
+                            ) : (
+                                <FormInternal form={form} />
+                            )}
                         </CardContent>
                     </Card>
 
+                    {/* ── Pengaturan Berita ── */}
                     <Card>
                         <CardContent className="p-6 grid grid-cols-12 gap-4">
                             <FormHeader title="Pengaturan Berita" isColumn />
+
                             <FormField
                                 control={form.control}
                                 name="tagIds"
                                 render={({ field }) => (
-                                    <FormItem className='col-span-12 lg:col-span-6'>
+                                    <FormItem className="col-span-12 lg:col-span-6">
                                         <FormLabel>Tag Berita</FormLabel>
                                         <FormControl>
                                             <TagInput
@@ -483,7 +570,7 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
                                                 tags={tags}
                                                 setTags={(newTags) => {
                                                     setTags(newTags)
-                                                    form.setValue('tagIds', newTags as [TagInputType, ...TagInputType[]]);
+                                                    form.setValue("tagIds", newTags as [TagInputType, ...TagInputType[]])
                                                 }}
                                                 placeholder="Masukkan tag berita..."
                                                 styleClasses={{
@@ -498,12 +585,14 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
                                                 }}
                                                 activeTagIndex={activeTagsIndex}
                                                 setActiveTagIndex={setActiveTagsIndex}
-                                                enableAutocomplete={true}
-                                                restrictTagsToAutocompleteOptions={true}
+                                                enableAutocomplete
+                                                restrictTagsToAutocompleteOptions
                                                 autocompleteOptions={tagsAutoComplete}
                                             />
                                         </FormControl>
-                                        <FormDescription className="text-xs">(** Tekan <strong>Enter</strong> atau <strong>,</strong>)</FormDescription>
+                                        <FormDescription className="text-xs">
+                                            (** Tekan <strong>Enter</strong> atau <strong>,</strong>)
+                                        </FormDescription>
                                         <FormMessage />
                                     </FormItem>
                                 )}
@@ -514,7 +603,7 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
                                     control={form.control}
                                     name="partnerIds"
                                     render={({ field }) => (
-                                        <FormItem className='col-span-12 lg:col-span-6'>
+                                        <FormItem className="col-span-12 lg:col-span-6">
                                             <FormLabel>Partner</FormLabel>
                                             <FormControl>
                                                 <TagInput
@@ -522,9 +611,9 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
                                                     tags={partners}
                                                     setTags={(newTags) => {
                                                         setPartners(newTags)
-                                                        form.setValue('partnerIds', newTags as [TagInputType, ...TagInputType[]]);
+                                                        form.setValue("partnerIds", newTags as [TagInputType, ...TagInputType[]])
                                                     }}
-                                                    placeholder="Masukkan tag berita..."
+                                                    placeholder="Masukkan partner..."
                                                     styleClasses={{
                                                         inlineTagsContainer:
                                                             "border-input rounded-md bg-background shadow-xs transition-[color,box-shadow] focus-within:border-ring outline-none focus-within:ring-[3px] focus-within:ring-ring/50 p-1 gap-1",
@@ -537,12 +626,14 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
                                                     }}
                                                     activeTagIndex={activePartnersIndex}
                                                     setActiveTagIndex={setActivePartnersIndex}
-                                                    enableAutocomplete={true}
-                                                    restrictTagsToAutocompleteOptions={true}
+                                                    enableAutocomplete
+                                                    restrictTagsToAutocompleteOptions
                                                     autocompleteOptions={partnerAutoComplete}
                                                 />
                                             </FormControl>
-                                            <FormDescription className="text-xs">Jika Berita ini berkolaborasi dengan instansi eksternal</FormDescription>
+                                            <FormDescription className="text-xs">
+                                                Jika Berita ini berkolaborasi dengan instansi eksternal
+                                            </FormDescription>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -603,24 +694,25 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
                                                 <SelectContent className="[&_*[role=option]]:ps-2 [&_*[role=option]]:pe-8 [&_*[role=option]>span]:start-auto [&_*[role=option]>span]:end-2 [&_*[role=option]>span]:flex [&_*[role=option]>span]:items-center [&_*[role=option]>span]:gap-2">
                                                     <SelectGroup>
                                                         <SelectLabel className="ps-2">Pilih Subunit...</SelectLabel>
-                                                        {Array.isArray(subunits) && subunits.map((item: Subunit) => (
-                                                            <SelectItem key={item.id} value={item.id}>
-                                                                <Image
-                                                                    className="size-5 rounded"
-                                                                    src={item.logo || "/Logo_GEN-A_mini.png"}
-                                                                    alt={`logo ${item.name}`}
-                                                                    width={20}
-                                                                    height={20}
-                                                                />
-                                                                <span className="truncate text-xs sm:text-sm">{item.name} (<strong>{item.abbreviation}</strong>)</span>
-                                                            </SelectItem>
-                                                        ))}
+                                                        {Array.isArray(subunits) &&
+                                                            subunits.map((item: Subunit) => (
+                                                                <SelectItem key={item.id} value={item.id}>
+                                                                    <Image
+                                                                        className="size-5 rounded"
+                                                                        src={item.logo || "/Logo_GEN-A_mini.png"}
+                                                                        alt={`logo ${item.name}`}
+                                                                        width={20}
+                                                                        height={20}
+                                                                    />
+                                                                    <span className="truncate text-xs sm:text-sm">
+                                                                        {item.name} (<strong>{item.abbreviation}</strong>)
+                                                                    </span>
+                                                                </SelectItem>
+                                                            ))}
                                                     </SelectGroup>
                                                 </SelectContent>
                                             </Select>
-                                            <FormDescription>
-                                                Subunit Terkait jika ada
-                                            </FormDescription>
+                                            <FormDescription>Subunit Terkait jika ada</FormDescription>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -637,7 +729,7 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
                                             <PopoverTrigger asChild>
                                                 <FormControl>
                                                     <Button
-                                                        variant={"outline"}
+                                                        variant="outline"
                                                         className={cn(
                                                             "w-full h-10 text-left font-normal transition-all",
                                                             "hover:bg-accent hover:text-accent-foreground",
@@ -646,7 +738,9 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
                                                         )}
                                                     >
                                                         {field.value ? (
-                                                            <span className="truncate">{format(field.value, "PPP", { locale: id })}</span>
+                                                            <span className="truncate">
+                                                                {format(field.value, "PPP", { locale: id })}
+                                                            </span>
                                                         ) : (
                                                             <span>Pilih Tanggal</span>
                                                         )}
@@ -670,6 +764,7 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
                         </CardContent>
                     </Card>
 
+                    {/* ── Status ── */}
                     <FormField
                         control={form.control}
                         name="status"
@@ -684,12 +779,8 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
                                         }}
                                     />
                                 </FormControl>
-
                                 <div className="space-y-1 leading-none">
-                                    <FormLabel>
-                                        Publish Sekarang
-                                    </FormLabel>
-
+                                    <FormLabel>Publish Sekarang</FormLabel>
                                     <FormDescription>
                                         Jika dicentang, artikel akan langsung tampil ke publik.
                                         Jika tidak, artikel disimpan sebagai draft.
@@ -699,7 +790,7 @@ export default function FormNews({ newsId, initialData, tags: tagsData, partners
                         )}
                     />
 
-                    {/* SUBMIT BUTTON */}
+                    {/* ── Submit ── */}
                     <div className="flex justify-end">
                         <SubmitButton form={form} />
                     </div>

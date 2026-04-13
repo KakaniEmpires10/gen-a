@@ -28,9 +28,9 @@ const TableButton = ({ id, link, isExternal }: { id: string, link: string, isExt
                                 asChild
                                 rounded="circle"
                                 size="icon-sm"
-                                variant="success"
+                                variant={isExternal ? "outline-success" : "success"}
                             >
-                                <Link href={isExternal ? link : `/news/${link}`} target={isExternal ? "_blank" : undefined} rel={isExternal ? "noopener noreferrer" : undefined}>
+                                <Link href={isExternal ? link : `/news/${link}`} target="_blank" rel="noopener noreferrer">
                                     {isExternal ? <ExternalLink className="size-3" /> : <Eye className="size-3" />}
                                 </Link>
                             </Button>
