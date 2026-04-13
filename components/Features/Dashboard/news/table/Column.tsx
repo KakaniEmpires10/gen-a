@@ -1,52 +1,116 @@
 "use client"
 
-import { ColumnDef } from "@tanstack/react-table";
-import { Badge } from "@/components/ui/badge";
-import { NewsWithRelations } from "../news.constant";
-import { format } from "date-fns";
-import { id } from "date-fns/locale";
-import TableButton from "./TableButton";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
-import Image from "next/image";
+import { ColumnDef } from "@tanstack/react-table"
+import { Badge } from "@/components/ui/badge"
+import { NewsWithRelations } from "../news.constant"
+import { format } from "date-fns"
+import { id } from "date-fns/locale"
+import TableButton from "./TableButton"
+import Image from "next/image"
+import { Archive, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Clock } from "lucide-react"
+import { Button } from "@/components/ui/button"
+
+// ── Author Avatar ──────────────────────────────────────────────
+function AuthorAvatar({ name, image }: { name: string; image?: string | null }) {
+    const initials = name
+        .split(" ")
+        .slice(0, 2)
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+
+    return (
+        <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 bg-blue-50 text-blue-700 flex items-center justify-center text-[10px] font-medium">
+                {image ? (
+                    <Image
+                        src={image}
+                        alt={name}
+                        width={24}
+                        height={24}
+                        className="object-cover w-full h-full"
+                    />
+                ) : (
+                    initials
+                )}
+            </div>
+            <span className="text-xs text-foreground whitespace-nowrap">{name}</span>
+        </div>
+    )
+}
+
+// ── Thumbnail ──────────────────────────────────────────────────
+function Thumbnail({ src }: { src?: string | null }) {
+    return (
+        <div className="relative w-[72px] h-10 rounded-md overflow-hidden shrink-0 bg-slate-800">
+            {src ? (
+                <Image
+                    src={src}
+                    alt="Thumbnail"
+                    fill
+                    sizes="72px"
+                    className="object-cover"
+                />
+            ) : (
+                <div className="w-full h-full flex items-center justify-center text-[9px] font-medium text-slate-500 tracking-wide">
+                    NO IMAGE
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ── Status config ──────────────────────────────────────────────
+const statusConfig = {
+    PUBLISHED: {
+        label: "Published",
+        variant: "soft-success" as const,
+        icon: CheckCircle2,
+    },
+    DRAFT: {
+        label: "Draft",
+        variant: "soft-warning" as const,
+        icon: Clock,
+    },
+    ARCHIVED: {
+        label: "Archived",
+        variant: "muted" as const,
+        icon: Archive,
+    },
+} satisfies Record<string, { label: string; variant: string; icon: React.ElementType }>
 
 export const columns: ColumnDef<NewsWithRelations>[] = [
     {
         id: "no",
-        header: "No.",
-        cell: ({ row }) => <span>{row.index + 1}</span>,
+        header: "No. ",
+        cell: ({ row }) => (
+            <span className="text-xs text-muted-foreground tabular-nums">
+                {row.index + 1}
+            </span>
+        ),
     },
 
     {
         id: "featuredImage",
         header: "Thumbnail",
-        cell: ({ row }) => (
-            <AspectRatio ratio={16 / 9}>
-                {row.original.featuredImage ? (
-                    <Image
-                        className="rounded object-cover shadow-sm shadow-slate-800"
-                        src={row.original.featuredImage}
-                        alt="Featured Image..."
-                        fill
-                        sizes="33vw"
-                    />
-                ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-gray-900 to-gray-700 rounded-lg flex justify-center items-center text-white font-semibold">
-                        NO
-                    </div>
-                )}
-            </AspectRatio>
-        )
+        cell: ({ row }) => <Thumbnail src={row.original.featuredImage} />,
     },
 
     {
-        id: "jududl",
+        id: "judul",
         header: "Judul",
         cell: ({ row }) => {
-            const news = row.original;
-
+            const news = row.original
             return (
-                <p className="font-medium">{news.title}</p>
-            );
+                <div className="flex flex-col gap-0.5 max-w-[260px]">
+                    <p className="text-[13px] font-medium leading-snug line-clamp-2">
+                        {news.title}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground font-mono truncate max-w-[220px]">
+                        /{news.slug}
+                    </p>
+                </div>
+            )
         },
     },
 
@@ -54,55 +118,77 @@ export const columns: ColumnDef<NewsWithRelations>[] = [
         accessorKey: "type",
         header: "Tipe",
         cell: ({ row }) => {
-            const type = row.original.type;
-
+            const type = row.original.type
             return (
-                <Badge variant={type === "INTERNAL" ? "default" : "secondary"}>
+                <Badge variant={type === "INTERNAL" ? "soft-info" : "soft-indigo"}>
                     {type === "INTERNAL" ? "Internal" : "Eksternal"}
                 </Badge>
-            );
+            )
         },
     },
 
     {
         accessorKey: "users.name",
         header: "Author",
-        cell: ({ row }) => row.original.users?.name ?? "-",
+        cell: ({ row }) => {
+            const user = row.original.users
+            if (!user?.name) return <span className="text-muted-foreground">—</span>
+            return <AuthorAvatar name={user.name} image={user.image} />
+        },
     },
 
     {
         id: "tags",
         header: "Tag",
         cell: ({ row }) => {
-            const tags = row.original.news_tags;
-
-            if (!tags?.length) return <span>-</span>;
+            const tags = row.original.news_tags
+            if (!tags?.length)
+                return <span className="text-muted-foreground">—</span>
 
             return (
-                <div className="flex flex-wrap gap-1 max-w-[200px]">
-                    {tags.slice(0, 3).map((item) => (
-                        <Badge key={item.tag.id} variant="outline">
+                <div className="flex flex-wrap gap-1 max-w-[160px]">
+                    {tags.slice(0, 2).map((item) => (
+                        <Badge key={item.tag.id} variant="outline" className="text-[10px]">
                             {item.tag.name}
                         </Badge>
                     ))}
-                    {tags.length > 3 && (
-                        <span className="text-xs text-muted-foreground">
-                            +{tags.length - 3}
+                    {tags.length > 2 && (
+                        <span className="text-[10px] text-muted-foreground self-center">
+                            +{tags.length - 2}
                         </span>
                     )}
                 </div>
-            );
+            )
         },
     },
 
     {
         accessorKey: "publishedAt",
-        header: "Publish",
+        header: ({ column }) => (
+            <Button
+                variant="ghost"
+                size="sm"
+                className="-ml-3 h-8 gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+                Publish
+                {column.getIsSorted() === "asc" ? (
+                    <ArrowUp className="size-3" />
+                ) : column.getIsSorted() === "desc" ? (
+                    <ArrowDown className="size-3" />
+                ) : (
+                    <ArrowUpDown className="size-3 opacity-50" />
+                )}
+            </Button>
+        ),
+        sortingFn: "datetime",
         cell: ({ row }) => {
-            const date = row.original.publishedAt;
-            return date
-                ? format(new Date(date), "dd MMM yyyy", { locale: id })
-                : "-";
+            const date = row.original.publishedAt
+            return (
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {date ? format(new Date(date), "dd MMM yyyy", { locale: id }) : "—"}
+                </span>
+            )
         },
     },
 
@@ -110,16 +196,17 @@ export const columns: ColumnDef<NewsWithRelations>[] = [
         accessorKey: "status",
         header: "Status",
         cell: ({ row }) => {
-            const status = row.original.status;
+            const status = row.original.status
+            const config = statusConfig[status as keyof typeof statusConfig]
+            if (!config) return <Badge variant="outline">{status}</Badge>
 
-            const variant =
-                status === "PUBLISHED"
-                    ? "default"
-                    : status === "DRAFT"
-                        ? "secondary"
-                        : "outline";
-
-            return <Badge variant={variant}>{status}</Badge>;
+            const Icon = config.icon
+            return (
+                <Badge variant={config.variant} className="gap-1">
+                    <Icon className="size-3" />
+                    {config.label}
+                </Badge>
+            )
         },
     },
 
@@ -127,11 +214,12 @@ export const columns: ColumnDef<NewsWithRelations>[] = [
         id: "actions",
         header: "Aksi",
         cell: ({ row }) => {
-            const news = row.original;
-
+            const news = row.original
+            const isExternal = news.type === "EXTERNAL"
+            const link = isExternal ? news.externalUrl! : news.slug
             return (
-                <TableButton id={news.id} link={news.slug} isExternal={news.type === "EXTERNAL"} />
-            );
+                <TableButton id={news.id} link={link} isExternal={isExternal} />
+            )
         },
     },
-];
+]

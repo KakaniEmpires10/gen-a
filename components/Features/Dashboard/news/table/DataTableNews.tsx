@@ -1,7 +1,7 @@
 "use client"
 
 import { News } from "@prisma/client";
-import { ColumnDef, ColumnFiltersState, flexRender, getCoreRowModel, getFilteredRowModel, useReactTable } from "@tanstack/react-table";
+import { ColumnDef, ColumnFiltersState, flexRender, getCoreRowModel, getFilteredRowModel, getSortedRowModel, SortingState, useReactTable } from "@tanstack/react-table";
 import { useState } from "react";
 import { NewsWithRelations } from "../news.constant";
 import useSWR, { mutate } from "swr";
@@ -20,6 +20,7 @@ export function DataTableNews<TData extends News, TValue>({
     columns,
 }: DataTableProps<TData, TValue>) {
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+    const [sorting, setSorting] = useState<SortingState>([])
 
     const { data: newsData, error, isLoading, isValidating } = useSWR<NewsWithRelations[] | []>('/api/news');
 
@@ -33,8 +34,11 @@ export function DataTableNews<TData extends News, TValue>({
         getCoreRowModel: getCoreRowModel(),
         onColumnFiltersChange: setColumnFilters,
         getFilteredRowModel: getFilteredRowModel(),
+        onSortingChange: setSorting,
+        getSortedRowModel: getSortedRowModel(),
         state: {
             columnFilters,
+            sorting
         },
     });
 

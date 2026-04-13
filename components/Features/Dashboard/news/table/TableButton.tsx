@@ -2,7 +2,7 @@ import { deleteNews } from "@/action/NewsAction";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDeleteDialog } from "@/provider/DeleteDialogProvider";
-import { Eye, PenLine, Trash2 } from "lucide-react";
+import { ExternalLink, Eye, PenLine, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 const TableButton = ({ id, link, isExternal }: { id: string, link: string, isExternal: boolean }) => {
@@ -30,8 +30,8 @@ const TableButton = ({ id, link, isExternal }: { id: string, link: string, isExt
                                 size="icon-sm"
                                 variant="success"
                             >
-                                <Link href={isExternal ? link : `/news/${link}`}>
-                                    <Eye className="size-3" />
+                                <Link href={isExternal ? link : `/news/${link}`} target={isExternal ? "_blank" : undefined} rel={isExternal ? "noopener noreferrer" : undefined}>
+                                    {isExternal ? <ExternalLink className="size-3" /> : <Eye className="size-3" />}
                                 </Link>
                             </Button>
                         </TooltipTrigger>
@@ -47,7 +47,7 @@ const TableButton = ({ id, link, isExternal }: { id: string, link: string, isExt
                                 rounded="circle"
                                 size="icon-sm"
                             >
-                                <Link href={`/dashboard/members/edit/${id}`}>
+                                <Link href={`/dashboard/news/edit/${id}`}>
                                     <PenLine className="size-3" />
                                 </Link>
                             </Button>
