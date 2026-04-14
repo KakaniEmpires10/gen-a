@@ -146,6 +146,7 @@ export default function FormNews({
                 status: "DRAFT",
                 tagIds: [],
                 partnerIds: [],
+                slug: "",
                 title: "",
                 content: "",
                 excerpt: "",
