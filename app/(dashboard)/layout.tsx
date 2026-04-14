@@ -17,7 +17,7 @@ const DashboardLayout = async ({ children }: Readonly<{ children: React.ReactNod
                 <DeleteDialogProvider>
                     <SiteHeader />
                     <DynamicBreadcrumb />
-                    <section className="px-2 pb-4 flex flex-col gap-4 md:gap-6 lg:px-4">
+                    <section className="px-2 pb-4 flex flex-col gap-4 md:gap-6 lg:px-4 min-w-0 w-full">
                         {children}
                     </section>
                     <SiteFooter />
