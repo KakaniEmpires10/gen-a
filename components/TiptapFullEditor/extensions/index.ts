@@ -54,6 +54,15 @@ export const getMiniExtensions = (placeholder?: string) => [
     heading: false,
   }),
   Placeholder.configure({
-    placeholder: placeholder || "Tulis bio singkat di sini...",
-  })
+    emptyNodeClass: "is-editor-empty",
+    placeholder: ({ editor }) => {
+      const pos = editor.state.selection.$anchor.pos;
+      if (pos <= 1) {
+        return placeholder || "Tulis sesuatu di sini...";
+      }
+      return "lanjutkan mengetik...";
+    },
+
+  }),
+  SearchAndReplace,
 ];

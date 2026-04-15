@@ -419,3 +419,27 @@
   height: 0;
   pointer-events: none;
 }
+
+/* Gunakan pembungkus luar untuk membedakan Mini vs Full */
+.tiptap-mini-wrapper .ProseMirror {
+  padding: 0.75rem 1rem !important;
+  min-height: 120px !important;
+  max-width: none !important;
+}
+
+.tiptap-mini-wrapper .ProseMirror p {
+  margin-top: 0.25rem !important;
+  margin-bottom: 0.25rem !important;
+  line-height: 1.5 !important;
+  font-size: 1rem !important;
+}
+
+/* Pastikan Placeholder tetap muncul meski navigasi pindah */
+.tiptap-mini-wrapper .is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--editor-text-gray);
+  pointer-events: none;
+  height: 0;
+  font-style: italic;
+}

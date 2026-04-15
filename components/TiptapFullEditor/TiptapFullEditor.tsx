@@ -9,65 +9,15 @@ import { EditorToolbar } from "./toolbars/editor-toolbar";
 import { useEffect } from "react";
 import { getExtensions } from "./extensions";
 
-// const extensions = [
-//     StarterKit.configure({
-//         orderedList: {
-//             HTMLAttributes: {
-//                 class: "list-decimal",
-//             },
-//         },
-//         bulletList: {
-//             HTMLAttributes: {
-//                 class: "list-disc",
-//             },
-//         },
-//         heading: {
-//             levels: [1, 2, 3, 4],
-//         },
-//     }),
-//     Placeholder.configure({
-//         emptyNodeClass: "is-editor-empty",
-//         placeholder: ({ node }) => {
-//             switch (node.type.name) {
-//                 case "heading":
-//                     return `Heading ${node.attrs.level}`;
-//                 case "detailsSummary":
-//                     return "Section title";
-//                 case "codeBlock":
-//                     // never show the placeholder when editing code
-//                     return "";
-//                 default:
-//                     return "Write, type '/' for commands";
-//             }
-//         },
-//         includeChildren: false,
-//     }),
-//     TextAlign.configure({
-//         types: ["heading", "paragraph"],
-//     }),
-//     TextStyle,
-//     Subscript,
-//     Superscript,
-//     Underline,
-//     Link,
-//     Color,
-//     Highlight.configure({
-//         multicolor: true,
-//     }),
-//     ImageExtension,
-//     ImagePlaceholder,
-//     SearchAndReplace,
-//     Typography,
-// ];
-
 interface TiptapFullEditorProps {
     className?: string
     value?: string
+    error?: boolean
     onChange?: (html: string) => void
     onEditorReady?: (editor: Editor) => void
 }
 
-export function TiptapFullEditor({ className, value, onChange, onEditorReady }: TiptapFullEditorProps) {
+export function TiptapFullEditor({ className, value, error, onChange, onEditorReady }: TiptapFullEditorProps) {
     const editor = useEditor({
         immediatelyRender: false,
         extensions: getExtensions() as Extension[],
@@ -105,6 +55,7 @@ export function TiptapFullEditor({ className, value, onChange, onEditorReady }: 
         <div
             className={cn(
                 "relative max-h-[calc(100dvh-6rem)]  w-full overflow-hidden overflow-y-scroll border bg-card pb-[60px] sm:pb-0",
+                error ? "border-destructive" : "border-input",
                 className
             )}
         >
