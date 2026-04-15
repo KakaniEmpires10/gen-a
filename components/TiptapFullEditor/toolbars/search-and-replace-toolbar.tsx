@@ -219,7 +219,7 @@ export function SearchAndReplaceToolbar() {
                                     onClick={selectPrevious}
                                     size="icon"
                                     className="h-7 w-7"
-                                    variant="secondary"
+                                    variant="soft-secondary"
                                 >
                                     <ArrowLeftIcon className="h-4 w-4" />
                                 </Button>
@@ -227,7 +227,7 @@ export function SearchAndReplaceToolbar() {
                                     onClick={selectNext}
                                     size="icon"
                                     className="h-7 w-7"
-                                    variant="secondary"
+                                    variant="soft-secondary"
                                 >
                                     <ArrowRightIcon className="h-4 w-4" />
                                 </Button>
@@ -237,7 +237,7 @@ export function SearchAndReplaceToolbar() {
                                 <Button
                                     size="sm"
                                     className="h-7 px-3 text-xs"
-                                    variant="secondary"
+                                    variant="soft-secondary"
                                     onClick={replaceAll}
                                 >
                                     Replace All
