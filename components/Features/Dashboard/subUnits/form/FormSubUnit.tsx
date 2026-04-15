@@ -16,12 +16,12 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn, createInitialFile } from "@/lib/utils";
-import TiptapEditor from "@/components/TiptapEditor/TiptapEditor";
 import SubmitButton from "@/components/ui/SubmitButton";
 import { addSubUnit, updateSubUnit } from "@/action/SubUnitAction";
 import { uploadToCloudinaryClient } from "@/lib/cloudinary/image-uploader-client";
 import { useRouter } from "next/navigation";
 import { SubUnit } from "@prisma/client";
+import { TiptapMiniEditor } from "@/components/TiptapFullEditor/TiptapMiniEditor";
 
 const FormSubUnit = ({ data }: { data?: SubUnit }) => {
     const router = useRouter();
@@ -257,7 +257,7 @@ const FormSubUnit = ({ data }: { data?: SubUnit }) => {
                                         Deskripsi singkat tentang sub-unit ini, bisa berisi visi, misi, atau informasi penting lainnya.
                                     </FormDescription>
                                     <FormControl>
-                                        <TiptapEditor
+                                        <TiptapMiniEditor
                                             value={field.value}
                                             onChange={field.onChange}
                                             placeholder="Tuliskan Deskripsi Disini"

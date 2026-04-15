@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button"
 import { AlertCircleIcon, Facebook, ImageIcon, Instagram, MinusCircle, PlusCircle, UploadIcon, XIcon, Youtube } from "lucide-react"
 import { useFileUpload } from "@/hooks/use-file-upload"
 import Image from "next/image"
-import TiptapEditor from "@/components/TiptapEditor/TiptapEditor"
 import { Textarea } from "@/components/ui/textarea"
 import { cn, createInitialFile } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
@@ -21,6 +20,7 @@ import toast from "react-hot-toast"
 import { SiteSettings } from "@prisma/client"
 import { FormHeader } from "@/components/Layouts/Dashboard/FormHeader"
 import { uploadToCloudinaryClient } from "@/lib/cloudinary/image-uploader-client"
+import { TiptapMiniEditor } from "@/components/TiptapFullEditor/TiptapMiniEditor"
 
 const FormSetting = ({ data }: { data: SiteSettings }) => {
   const maxSizeMB = 5
@@ -262,7 +262,7 @@ const FormSetting = ({ data }: { data: SiteSettings }) => {
                     Konten dari input ini akan ditampilkan di halaman depan dan halaman tentang kami
                   </FormDescription>
                   <FormControl>
-                    <TiptapEditor
+                    <TiptapMiniEditor
                       value={field.value}
                       onChange={field.onChange}
                       placeholder="Tuliskan Deskripsi Disini"
@@ -316,7 +316,7 @@ const FormSetting = ({ data }: { data: SiteSettings }) => {
                 ))}
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="soft-success"
                   size="sm"
                   className="mt-2"
                   onClick={() => appendVision({ value: "" })}
@@ -344,7 +344,7 @@ const FormSetting = ({ data }: { data: SiteSettings }) => {
                           </FormControl>
                           {index != 0 && (
                             <Button
-                              variant="destructive"
+                              variant="soft-destructive"
                               size="icon"
                               onClick={() => removeMission(index)}
                             >
@@ -359,7 +359,7 @@ const FormSetting = ({ data }: { data: SiteSettings }) => {
                 ))}
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="soft-success"
                   size="sm"
                   className="mt-2"
                   onClick={() => appendMission({ value: "" })}

@@ -42,7 +42,6 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import SubmitButton from "@/components/ui/SubmitButton"
 import YearCalender from "@/components/ui/year-calendar"
-import TiptapEditor from "@/components/TiptapEditor/TiptapEditor"
 import { memberSchema } from "../member.constant"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
@@ -59,6 +58,7 @@ import toast from "react-hot-toast"
 import { SocialItem, Socials } from "@/types/socialType"
 import { Member, SubDepartment, SubUnit } from "@prisma/client"
 import { uploadToCloudinaryClient } from "@/lib/cloudinary/image-uploader-client"
+import { TiptapMiniEditor } from "@/components/TiptapFullEditor/TiptapMiniEditor"
 
 type MemberType = {
     id: string;
@@ -679,10 +679,10 @@ export default function FormMember({ data }: { data?: MemberDataType }) {
                                         Jelaskan tentang diri anda, pengalaman, atau apa yang ingin anda capai kedepannya untuk tampil di portfolio
                                     </FormDescription>
                                     <FormControl>
-                                        <TiptapEditor
+                                        <TiptapMiniEditor
                                             value={field.value}
                                             onChange={field.onChange}
-                                            placeholder="Tuliskan bio Disini"
+                                            placeholder="Tuliskan bio Disini..."
                                             error={!!form.formState.errors.bio}
                                         />
                                     </FormControl>
