@@ -2,39 +2,63 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 interface UseImageUploadProps {
   onUpload?: (url: string) => void;
+  onError?: (error: string) => void;
+  folder?: string;
 }
 
-export function useImageUpload({ onUpload }: UseImageUploadProps = {}) {
+export function useImageUpload({
+  onUpload,
+  onError,
+  folder = "/drafts",
+}: UseImageUploadProps = {}) {
   const previewRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  // Dummy upload function that simulates a delay and returns the local preview URL
-  const dummyUpload = async (file: File, localUrl: string): Promise<string> => {
-    try {
-      setUploading(true);
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+  const uploadToCloudinary = useCallback(
+    (file: File): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append(
+          "upload_preset",
+          process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!,
+        );
+        formData.append("folder", folder);
 
-      // Simulate random upload errors (20% chance)
-      if (Math.random() < 0.2) {
-        throw new Error("Upload failed - This is a demo error");
-      }
+        const xhr = new XMLHttpRequest();
+        xhr.open(
+          "POST",
+          `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+          true,
+        );
 
-      setError(null);
-      // In a real implementation, this would be the URL from the server
-      return localUrl;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Upload failed";
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    } finally {
-      setUploading(false);
-    }
-  };
+        xhr.upload.onprogress = event => {
+          if (event.lengthComputable) {
+            setProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            const res = JSON.parse(xhr.responseText);
+            resolve(res.secure_url);
+          } else {
+            reject(new Error("Gagal mengupload gambar ke server"));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error("Koneksi terputus saat upload"));
+
+        xhr.send(formData);
+      });
+    },
+    [folder],
+  );
 
   const handleThumbnailClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -43,44 +67,53 @@ export function useImageUpload({ onUpload }: UseImageUploadProps = {}) {
   const handleFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
-      if (file) {
-        setFileName(file.name);
-        const localUrl = URL.createObjectURL(file);
-        setPreviewUrl(localUrl);
-        previewRef.current = localUrl;
+      if (!file) return;
 
-        try {
-          const uploadedUrl = await dummyUpload(file, localUrl);
-          onUpload?.(uploadedUrl);
-        } catch (err) {
-          URL.revokeObjectURL(localUrl);
-          setPreviewUrl(null);
-          setFileName(null);
-          return console.error(err);
-        }
+      setFileName(file.name);
+      setError(null);
+      setProgress(0);
+
+      // Tampilkan preview lokal dulu supaya UX terasa cepat
+      const localUrl = URL.createObjectURL(file);
+      setPreviewUrl(localUrl);
+      previewRef.current = localUrl;
+
+      setUploading(true);
+      try {
+        const cloudinaryUrl = await uploadToCloudinary(file);
+        // Revoke local URL setelah dapat URL cloudinary
+        URL.revokeObjectURL(localUrl);
+        previewRef.current = null;
+        onUpload?.(cloudinaryUrl);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Upload gagal";
+        setError(message);
+        onError?.(message);
+        URL.revokeObjectURL(localUrl);
+        setPreviewUrl(null);
+        setFileName(null);
+        previewRef.current = null;
+      } finally {
+        setUploading(false);
+        setProgress(0);
       }
     },
-    [onUpload],
+    [uploadToCloudinary, onUpload, onError],
   );
 
   const handleRemove = useCallback(() => {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-    }
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
     setPreviewUrl(null);
     setFileName(null);
     previewRef.current = null;
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
     setError(null);
-  }, [previewUrl]);
+    setProgress(0);
+  }, []);
 
   useEffect(() => {
     return () => {
-      if (previewRef.current) {
-        URL.revokeObjectURL(previewRef.current);
-      }
+      if (previewRef.current) URL.revokeObjectURL(previewRef.current);
     };
   }, []);
 
@@ -92,6 +125,7 @@ export function useImageUpload({ onUpload }: UseImageUploadProps = {}) {
     handleFileChange,
     handleRemove,
     uploading,
+    progress,
     error,
   };
 }

@@ -1,5 +1,6 @@
 import { UploadApiErrorResponse, UploadApiResponse } from "cloudinary";
 import cloudinary from "./cloudinary";
+import { extractCloudinaryUrlsFromContent } from "../tiptap-utils";
 
 export type UploadedImage = {
   url: string;
@@ -49,13 +50,13 @@ export const replaceImageCloudinary = async (img: File, url: string) => {
             return;
           }
           resolve({ success: true, result: result });
-        }
+        },
       )
       .end(buffer);
   });
 
   return res;
-}
+};
 
 // Dapatkan public ID dari URL Cloudinary
 export const getPublicIdFromUrl = (url: string): string | null => {
@@ -71,7 +72,7 @@ export const getPublicIdFromUrl = (url: string): string | null => {
     // Jika tidak ada folder, kembalikan hanya publicId
     return match[2];
   }
-  
+
   return null;
 };
 
@@ -87,4 +88,48 @@ export const deleteFromCloudinary = async (publicId: string) => {
   });
 
   return res;
+};
+
+export async function cleanupContentImages(content: unknown) {
+  const urls = extractCloudinaryUrlsFromContent(content);
+  if (!urls.length) return;
+
+  await Promise.allSettled(
+    urls.map(url => {
+      const publicId = getPublicIdFromUrl(url);
+      if (!publicId) return Promise.resolve();
+      return deleteFromCloudinary(publicId).catch(err =>
+        console.error("Cloudinary content cleanup failed:", err),
+      );
+    }),
+  );
+};
+
+export const moveToPublished = async (
+  publicId: string,
+  contentId: string,
+): Promise<string | null> => {
+  const filename = publicId.split("/").pop();
+  if (!filename) return null;
+
+  const newPublicId = `/published/${contentId}/${filename}`;
+
+  const res = await new Promise<{ secure_url: string } | null>(
+    (resolve, reject) => {
+      cloudinary.uploader.rename(
+        publicId,
+        newPublicId,
+        { overwrite: true, invalidate: true },
+        (error, result) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve(result as { secure_url: string });
+        },
+      );
+    },
+  );
+
+  return res?.secure_url ?? null;
 };

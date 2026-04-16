@@ -1,8 +1,9 @@
 "use server";
 import { auth } from "@/auth";
 import { newsFormSchema } from "@/components/Features/Dashboard/news/news.constant";
-import { deleteFromCloudinary, getPublicIdFromUrl } from "@/lib/cloudinary/image-uploader";
+import { cleanupContentImages, deleteFromCloudinary, getPublicIdFromUrl, moveToPublished } from "@/lib/cloudinary/image-uploader";
 import prisma from "@/lib/prisma";
+import { extractCloudinaryUrlsFromContent, replaceUrlsInContent } from "@/lib/tiptap-utils";
 import { NewsStatus, Prisma } from "@prisma/client";
 import { unstable_cache as cache, revalidateTag } from "next/cache";
 import { z } from "zod";
@@ -91,9 +92,37 @@ export const addNews = async (values: z.infer<typeof newsFormSchema>) => {
     sourceName,
   } = values;
 
-  const tags =  tagIds?.map(tag => ({ id: tag.id, name: tag.text })) || [];
+  const tags = tagIds?.map(tag => ({ id: tag.id, name: tag.text })) || [];
   const partners =
     partnerIds?.map(partner => ({ id: partner.id, name: partner.text })) || [];
+
+  // Pindahkan gambar konten dari drafts ke published
+  let finalContent = content;
+  if (content) {
+    const draftUrls = extractCloudinaryUrlsFromContent(content).filter(url =>
+      getPublicIdFromUrl(url)?.startsWith("drafts/"),
+    );
+
+    if (draftUrls.length > 0) {
+      const urlMap = new Map<string, string>();
+
+      await Promise.allSettled(
+        draftUrls.map(async url => {
+          const publicId = getPublicIdFromUrl(url);
+          if (!publicId) return;
+          const newUrl = await moveToPublished(publicId, slug).catch(err => {
+            console.error("Move to published failed:", err);
+            return null;
+          });
+          if (newUrl) urlMap.set(url, newUrl);
+        }),
+      );
+
+      if (urlMap.size > 0) {
+        finalContent = replaceUrlsInContent(content, urlMap);
+      }
+    }
+  }
 
   try {
     await prisma.news.create({
@@ -101,7 +130,7 @@ export const addNews = async (values: z.infer<typeof newsFormSchema>) => {
         title,
         type,
         status,
-        content,
+        content: finalContent,
         excerpt,
         externalUrl: externalUrl,
         featuredImage: featuredImage,
@@ -139,7 +168,6 @@ export const addNews = async (values: z.infer<typeof newsFormSchema>) => {
       message: "Berita Berhasil Dibuat",
     };
   } catch (err) {
-
     if (values.featuredImage) {
       const publicId = getPublicIdFromUrl(values.featuredImage);
       if (publicId) {
@@ -172,8 +200,8 @@ export const addNews = async (values: z.infer<typeof newsFormSchema>) => {
     if (err instanceof Error) {
       return {
         success: false,
-        message: err.message
-      }
+        message: err.message,
+      };
     }
 
     return {
@@ -210,8 +238,36 @@ export const updateNews = async (
   try {
     const existingNews = await prisma.news.findUnique({
       where: { id },
-      select: { featuredImage: true },
+      select: { featuredImage: true, content: true },
     });
+
+    // Pindahkan gambar baru dari drafts ke published
+    let finalContent = content;
+    if (content) {
+      const draftUrls = extractCloudinaryUrlsFromContent(content).filter(url =>
+        getPublicIdFromUrl(url)?.startsWith("editor/content/drafts/"),
+      );
+
+      if (draftUrls.length > 0) {
+        const urlMap = new Map<string, string>();
+
+        await Promise.allSettled(
+          draftUrls.map(async url => {
+            const publicId = getPublicIdFromUrl(url);
+            if (!publicId) return;
+            const newUrl = await moveToPublished(publicId, id).catch(err => {
+              console.error("Move to published failed:", err);
+              return null;
+            });
+            if (newUrl) urlMap.set(url, newUrl);
+          }),
+        );
+
+        if (urlMap.size > 0) {
+          finalContent = replaceUrlsInContent(content, urlMap);
+        }
+      }
+    }
 
     const updatedNews = await prisma.news.update({
       where: { id },
@@ -219,7 +275,7 @@ export const updateNews = async (
         title,
         type,
         status,
-        content,
+        content: finalContent,
         excerpt,
         externalUrl: externalUrl || null,
         featuredImage: featuredImage || null,
@@ -247,13 +303,33 @@ export const updateNews = async (
       },
     });
 
-    if (existingNews?.featuredImage && existingNews.featuredImage !== updatedNews.featuredImage) {
+    if (
+      existingNews?.featuredImage &&
+      existingNews.featuredImage !== updatedNews.featuredImage
+    ) {
       const publicId = getPublicIdFromUrl(existingNews.featuredImage);
       if (publicId) {
         await deleteFromCloudinary(publicId).catch(err =>
           console.error("Cloudinary Cleanup Failed:", err),
         );
       }
+    }
+
+    if (existingNews?.content && typeof existingNews.content === "string") {
+      const oldUrls = extractCloudinaryUrlsFromContent(existingNews.content);
+      const newUrls = new Set(extractCloudinaryUrlsFromContent(values.content));
+
+      const removedUrls = oldUrls.filter(url => !newUrls.has(url));
+
+      await Promise.allSettled(
+        removedUrls.map(url => {
+          const publicId = getPublicIdFromUrl(url);
+          if (!publicId) return Promise.resolve();
+          return deleteFromCloudinary(publicId).catch(err =>
+            console.error("Cloudinary content cleanup failed:", err),
+          );
+        }),
+      );
     }
 
     revalidateTag("news");
@@ -329,22 +405,26 @@ export const deleteNews = async (id: string) => {
   }
 
   try {
-    const exisitingNews = await prisma.news.findUnique({
+    const existingNews = await prisma.news.findUnique({
       where: { id },
-      select: { featuredImage: true },
+      select: { featuredImage: true, content: true },
     });
 
     await prisma.news.delete({
       where: { id },
     });
 
-    if (exisitingNews?.featuredImage) {
-      const publicId = getPublicIdFromUrl(exisitingNews.featuredImage);
+    if (existingNews?.featuredImage) {
+      const publicId = getPublicIdFromUrl(existingNews.featuredImage);
       if (publicId) {
         await deleteFromCloudinary(publicId).catch(err =>
           console.error("Cloudinary Cleanup Failed:", err),
         );
       }
+    }
+
+    if (existingNews?.content) {
+      await cleanupContentImages(existingNews.content);
     }
 
     revalidateTag("news");
