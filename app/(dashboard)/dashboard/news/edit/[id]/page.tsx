@@ -34,7 +34,7 @@ const EditNewsPage = async ({ params }: { params: { id: string } }) => {
     featuredImage: news.featuredImage ?? "",
     authorId: news.authorId,
     subunitId: news.subunitId ?? "",
-    publishedAt: news.publishedAt ?? new Date(),
+    publishedAt: new Date(news.publishedAt ?? new Date()),
     tagIds: news.news_tags.map((t) => ({ id: t.tag.id, text: t.tag.name })),
     partnerIds: news.PartnerOnNews.map((p) => ({
       id: p.partners.id,
